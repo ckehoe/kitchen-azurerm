@@ -334,10 +334,12 @@ module Kitchen
           list_outstanding_deployment_operations(resource_group, deployment_name)
           sleep 10
           deployment_provisioning_state = deployment_state(resource_group, deployment_name)
+          
           end_provisioning_state_reached = end_provisioning_states.split(',').include?(deployment_provisioning_state)
         end
         info "Resource Template deployment reached end state of '#{deployment_provisioning_state}'."
         show_failed_operations(resource_group, deployment_name) if deployment_provisioning_state == 'Failed'
+        process_deployment_outputs(resource_group, deployment_name) if deployment_provisioning_state == 'Succeeded'
       end
 
       def show_failed_operations(resource_group, deployment_name)
@@ -363,6 +365,23 @@ module Kitchen
           end
         end
       end
+
+      # Add the outputs of the pre-deployment template as environmental variables
+      # which can be read by the .kitchen.yml configuration file
+      def process_deployment_outputs(resource_group, deployment_name)
+        deployment_outputs = deployment_outputs(resource_group, deployment_name)
+        if ! deployment_outputs.nil?
+          deployment_outputs.each do |outputKey, output|
+            ENV[outputKey.upcase] = output["value"]
+          end
+        end
+      end
+
+      def deployment_outputs(resource_group, deployment_name)
+        deployments = resource_management_client.deployments.get(resource_group, deployment_name)
+        deployments.properties.outputs
+      end
+ 
 
       def deployment_state(resource_group, deployment_name)
         deployments = resource_management_client.deployments.get(resource_group, deployment_name)
